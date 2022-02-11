@@ -6,70 +6,105 @@ getThing <- function(Goal){
   dPrimes <- c(0.5)
   baseRates <- c(0.49, 0.51)
   Goal <- 1
+}
   
-for (i in dPrimes)
-  {
-  print("before second for")
-    for (j in baseRates){
-      FNPayOff <- 0
-      stepSize <- 1
-      optimalBeta <-(1-j)/j*(1)/(exp(FNPayOff))
-      optimalBias <- log(optimalBeta)/i
-      nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-      nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-      nTruePositives <- 1 - pnorm((optimalBias-i/2)) * (j)
-      nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-      FPdivFN <- nFalsePositives / nFalseNegatives
+
+  
+  findOptimalRange <- function (matrixes){
+    
+    for (matrix in matrixes){
+      length <- matrix.length
       
-      distance <- Goal - FPdivFN
-      print(c(FNPayOff, stepSize, Goal, FPdivFN, distance))
-      
-      
-      if(distance < 0){
-        MovingUp <- TRUE
-      }
-      else{
-        MovingUp <- FALSE
-      }
-      
-      while (abs(distance) > 0.01){
-        if(distance < 0)
-        {
-          if (MovingUp == FALSE)
-          {
-            stepSize <- stepSize/2
-          }
-          FNPayOff <- FNPayOff - stepSize 
-          MovingUP <- TRUE
-        }
-        else
-        {
-          if (MovingUp == TRUE)
-          {
-            stepSize <- stepSize/2
-          }
-          FNPayOff <- FNPayOff + stepSize  
-          MovingUP <- FALSE
-        }
-        
-        optimalBeta <-(1-j)/j*(1)/(exp(FNPayOff))
-        optimalBias <- log(optimalBeta)/i
-        nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-        nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-        nTruePositives <- 1 - pnorm((optimalBias-i/2)) * (j)
-        nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-        FPdivFN <- nFalsePositives / nFalseNegatives
-        
-        distance <- Goal - FPdivFN
-        print(c(FNPayOff, stepSize, Goal, FPdivFN, distance))
-        
-      }
-      
-      imat <- rbind(imat, c(i, j, FNPayOff, optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivFN, distance))
     }
+    
   }
   
- plot(imat[1:length(baseRates),2], imat[1:length(baseRates),3])
-}
 
-getThing(1)
+  
+  megamats = list()
+  for (i in 1:2){
+    imats = array(dim= c(0,2,3))  
+    for (j in 1:3){
+      imat <- matrix(nrow =0, ncol=2)          
+      for (k in 1:5){
+        imats[,,] <- rbind(imats, c(j, k))    
+      } 
+      imats[[,,j]] <-  imat
+    }
+    megamats[[i]] <-  imats
+  }
+  
+  lil <- matrix(megamats[1], nrow=3, ncol=3)
+  lil
+  
+  
+  
+  
+  # Create two vectors 
+  data1 <- c(1,2,3,4,5,6)
+  data2 <- c(60, 18, 12, 13, 14, 19)
+
+  
+  # pass these vectors as input to the array.
+  #  3 rows,3 columns and 3 arrays
+  result <- array(c(data1, data2), dim = c(3,3,3))
+  print(result)
+  
+  
+  imats = array(dim= c(3,3,3))
+  
+  imats[1,1,1] <- 22
+  
+  
+  imats
+  
+  
+  
+  
+  megamats <- list()
+  for (methods in 1:5){
+    imats <- matrix(nrow=0, ncol=4)
+    for (j in 1:3){
+      imats <- rbind(imats, c(33,55,11,00))
+    }
+    megamats[[methods]] <- imats
+  }
+    
+  megamats
+  
+  
+  test = matrix(megamats[[1]],nrow = 3, ncol = 4)
+  is.na(test)
+  
+  startN <- 1
+  endN <- 12
+  count <- 0
+  reachedStart <- FALSE
+  reachedEnd <- FALSE
+  
+  for (x in is.na(test)){
+    
+    print(x)
+    if (reachedStart == FALSE){
+      if (x == FALSE){
+        reachedStart <- TRUE
+      }
+      else{
+        startN <- startN+1
+      }
+    }
+    else{
+      if (reachedEnd == FALSE){
+        if (x == TRUE){
+          
+          reachedEnd  <- TRUE
+          endN <- count
+          
+        }
+      }
+    }
+    count <- count+1
+  }
+  
+startN  
+endN
