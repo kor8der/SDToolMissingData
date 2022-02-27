@@ -108,3 +108,92 @@ getThing <- function(Goal){
   
 startN  
 endN
+
+
+
+resultMatrixes <- list()
+resultMatrixCount <- 1
+newbr = c(0.112,0.113,0.114,0.115,0.116,0.117)
+realbrLength <- length(newbr)
+resultNamesList <- list()
+AnalysisName <- "PositiveRate"
+Goal <- 0.93
+initialStepsize <- 0.1
+for (i in c(0.5,1.0)){
+  imat <- matrix(nrow = 0, ncol = 10)
+  for (j in c(0.112,0.113,0.114,0.115,0.116,0.117)){
+    print(i)
+    print(j)
+    SKIPPED <- FALSE
+    if(0 > Goal){
+      SKIPPED <- TRUE
+    }
+    else{
+      
+      stepSize <- initialStepsize
+      optimalBias <- 0
+      nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+      nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+      nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+      nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+      PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
+      distance <- Goal - PosRate
+      if(distance > 0){
+        MovingUp <- TRUE
+      }
+      else{
+        MovingUp <- FALSE
+      }
+      Halved <- FALSE
+      
+      while (abs(distance) > 0.001){
+        print(distance)
+        if(distance > 0){
+          if (MovingUp == FALSE || Halved == TRUE){
+            stepSize <- stepSize/2
+            Halved = TRUE
+          }
+          optimalBias <- optimalBias - stepSize 
+          MovingUp <- TRUE
+        } 
+        else{
+          if (MovingUp == TRUE || Halved == TRUE){
+            stepSize <- stepSize/2
+            Halved = TRUE
+          }
+          optimalBias <- optimalBias + stepSize  
+          MovingUp <- FALSE
+        }
+        
+        nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+        nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+        nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+        nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+        PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
+        distance <- Goal - PosRate
+        if(stepSize < 0.000000000001){
+          SKIPPED <- TRUE
+          break 
+        }
+      }
+      
+    }
+    if (SKIPPED == FALSE){
+      FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
+      imat <- rbind(imat, c(i, j, FNPayOff, optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, PosRate, distance))
+    }
+    else{
+      imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA))
+    }
+  }
+  
+  resultMatrixes[[resultMatrixCount]] <- imat
+  
+  resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+  
+  resultMatrixCount = resultMatrixCount + 1
+}
+imat
+
+
+

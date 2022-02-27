@@ -14,7 +14,7 @@ library(plotly)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
-    
+      
     # Application title
     titlePanel("Incomplete data signal detection"),
     
@@ -25,11 +25,11 @@ ui <- fluidPage(
             numericInput("FalsePositivesNum", "Define False Positive observations:", 0, min = 0, max = 1000000, step = 1),
             numericInput("FalseNegativesNum", "Define False Negative observations:", 0, min = 0, max = 1000000, step = 1),
             numericInput("TrueNegativesNum", "Define True Negative observations:", 0, min = 0, max = 1000000, step = 1),
+            numericInput("PositiveRate", "Define positive percentage:", 0, min = 0, max = 100, step = 0.001),
             numericInput("DesiredPrecision", "Define Desired Precision (note that changing this may alter performance by orders of magnitude):", 0.001, min = 0.00000000001, max = 1, step = 0.00001),
-            sliderInput("dRange", "Define D' range:", c(0.5,3.0), min = 0.5, max = 8, step = 0.5),
-            sliderInput("brRange", "Define br range:", c(0.049,0.801), min = 0.01, max = 0.999, step = 0.001),
+            sliderInput("dRange", "Define D' range:", c(0.5,1.0), min = 0.5, max = 8, step = 0.5),
+            sliderInput("brRange", "Define br range:", c(0.49,0.51), min = 0.01, max = 0.999, step = 0.001),
             selectInput("SelectedOutput", "Pick output:", c("payoff ratio", "bias", "result", "distance")),
-            ##numericInput("TotalPositives", "Define Total Positive observations:", 0, min = 0, max = 1000000, step = 1),
             ##numericInput("TotalNegatives", "Define Total Negative rate:", 0, min = 0, max = 1000000, step = 1),
             width = 3
         ),
@@ -50,6 +50,7 @@ server <- function(input, output) {
     FP <- reactive({input$FalsePositivesNum})
     FN <- reactive({input$FalseNegativesNum})
     TN <- reactive({input$TrueNegativesNum})
+    PRate <- reactive({input$PositiveRate})
     dPrimes <- reactive({seq(input$dRange[1],input$dRange[2], 0.5)})
     baseRates <- reactive({seq(input$brRange[1],input$brRange[2], 0.001)})
     desiredPrecision <- reactive({input$DesiredPrecision})
@@ -62,16 +63,15 @@ server <- function(input, output) {
     initialStepsize <- 0.1
     
     output$distPlot <- renderPlotly({
-      print (ChosenAnalysis())
       resultMatrixes <- list()
       resultMatrixCount <- 1
       newbr = baseRates()
       realbrLength <- length(newbr)
+      resultNamesList <- list()
       
         if(1%in%ChosenAnalysis()){
             AnalysisName <- "FP/TP"
             Goal <- FP()/TP()
-            print(dPrimes())
             for (i in dPrimes())
             {
               imat <- matrix(nrow = 0, ncol = 10)
@@ -142,6 +142,7 @@ server <- function(input, output) {
                 
               resultMatrixes[[resultMatrixCount]] <- imat
               
+              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
               resultMatrixCount = resultMatrixCount + 1
             }
         }   
@@ -165,6 +166,8 @@ server <- function(input, output) {
                 }
                 
                 resultMatrixes[[resultMatrixCount]] <- imat
+                
+                resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
                 
                 resultMatrixCount = resultMatrixCount + 1
             }
@@ -231,6 +234,8 @@ server <- function(input, output) {
               }
               resultMatrixes[[resultMatrixCount]] <- imat
               
+              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+              
               resultMatrixCount = resultMatrixCount + 1
             }
             
@@ -295,6 +300,8 @@ server <- function(input, output) {
                 }
               resultMatrixes[[resultMatrixCount]] <- imat
               
+              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+              
               resultMatrixCount = resultMatrixCount + 1
             }
         }
@@ -318,6 +325,8 @@ server <- function(input, output) {
                 }
                 
                 resultMatrixes[[resultMatrixCount]] <- imat
+                
+                resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
                 
                 resultMatrixCount = resultMatrixCount + 1
             }
@@ -396,166 +405,285 @@ server <- function(input, output) {
               
               resultMatrixes[[resultMatrixCount]] <- imat
               
+              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+              
               resultMatrixCount = resultMatrixCount + 1
           }
         }
-      ## Restriction area 
-
-      endV <- vector()     
-      startV <- vector()      
-      for (n in 1:length(resultMatrixes))
-      {
-        test = matrix(resultMatrixes[[n]],nrow = length(newbr), ncol = 10)
-
-        startN <- 1
-        endN <- length(newbr)
-
-        count <- 0
-        reachedStart <- FALSE
-        reachedEnd <- FALSE
-        
-        for (m in 1:nrow(test)){
-          if (reachedStart == FALSE){
-            if (is.na(test[m,3])){
-              startN <- startN+1
+        if(7%in%ChosenAnalysis()){
+          AnalysisName <- "PositiveRate"
+          Goal <- PRate()
+          for (i in dPrimes()){
+            imat <- matrix(nrow = 0, ncol = 10)
+            for (j in newbr){
+              print(i)
+              print(j)
+              SKIPPED <- FALSE
+              if(0 > Goal){
+                SKIPPED <- TRUE
+              }
+              else{
+                
+                stepSize <- initialStepsize
+                optimalBias <- 0
+                nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
+                distance <- Goal - PosRate
+                if(distance > 0){
+                  MovingUp <- TRUE
+                }
+                else{
+                  MovingUp <- FALSE
+                }
+                Halved <- FALSE
+                
+                while (abs(distance) > desiredPrecision()){
+                  if(distance > 0){
+                    if (MovingUp == FALSE || Halved == TRUE){
+                      stepSize <- stepSize/2
+                      Halved = TRUE
+                    }
+                    optimalBias <- optimalBias - stepSize 
+                    MovingUp <- TRUE
+                  } 
+                  else{
+                    if (MovingUp == TRUE || Halved == TRUE){
+                      stepSize <- stepSize/2
+                      Halved = TRUE
+                    }
+                    optimalBias <- optimalBias + stepSize  
+                    MovingUp <- FALSE
+                  }
+                  
+                  nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                  nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                  nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                  nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                  PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
+                  distance <- Goal - PosRate
+                  if(stepSize < 0.000000000001){
+                    SKIPPED <- TRUE
+                    break 
+                  }
+                }
+                
+              }
+              if (SKIPPED == FALSE){
+                FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
+                imat <- rbind(imat, c(i, j, FNPayOff, optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, PosRate, distance))
+              }
+              else{
+                imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA))
+              }
             }
-            else{
-              reachedStart <- TRUE
-            }
+            
+            resultMatrixes[[resultMatrixCount]] <- imat
+            
+            resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+            
+            resultMatrixCount = resultMatrixCount + 1
           }
-          else if (reachedEnd == FALSE){
-            if (is.na(test[m,3])){
-              reachedEnd  <- TRUE
-              endN <- count
-            }
-          }
-          count <- count+1
         }
-        startV <- append (startV, startN)
-        endV <- append (endV, endN)
-      }
-      startV
-      endV
-      
-      realStart <- max(startV)
-      realEnd <- min(endV)
-      
-      
-      ##
-      
-      if (selectedOutputValue() == "bias"){
-        selectedColumn <- 4    
-      }
-      else if (selectedOutputValue() == "payoff ratio") {
-        selectedColumn <- 3    
-      }
-      else if (selectedOutputValue() == "result") {
-        selectedColumn <- 9
-      }
-      else if (selectedOutputValue() == "distance") {
-        selectedColumn <- 10    
-      }
-      
-      displayMatrix <- matrix(resultMatrixes[[1]],nrow = length(newbr), ncol = 10)
-      
-      
-      data <- data.frame(displayMatrix[realStart:realEnd,2], imat[realStart:realEnd,selectedColumn])
-      ##colnames <- c("br", dPrimes()[1])
-      ##colnames(data) <- colnames
-      k <- 2
-      
-      while (k <= length(resultMatrixes))
-      {
-        displayMatrix <- matrix(resultMatrixes[[k]],nrow = length(newbr), ncol = 10)
-        newdata <- data.frame(displayMatrix[realStart:realEnd,selectedColumn])
-        data <- cbind(data, newdata)
-        ##colnames <- c(colnames, dPrimes()[k+1])             
-        k <- k+1
-      }
-      
-      #colnames(data) <- colnames
-      
-      x <- list(
-        title = "Base Rate",
-        titlefont = font
-      )
-      
-      y <- list(
-        title = "log10 nFP/nFN",
-        titlefont = font
-      )
-      
-      #print(data)
-      
-      fig <- plot_ly(x= data[,1],y= data[,2], type ='scatter', mode='lines')
-      #fig <- plot_ly(x= data[,1],y= data[,2], name = paste("d' ", colnames[2]), type ='scatter', mode='lines')
-      
-      l <- 3 
-      
-      ##print(resultMatrixes)
-      
-      while (l <= ncol(data))
-      {
-        fig <- fig %>% add_trace(y= data[,l], mode='lines')
-        l <- l+1
+      ## Restriction area 
+      if (length(resultNamesList) > 0){
+        endV <- vector()     
+        startV <- vector()      
+        for (n in 1:length(resultMatrixes)){
+          test = matrix(resultMatrixes[[n]],nrow = length(newbr), ncol = 10)
+  
+          startN <- 1
+          endN <- length(newbr)
+  
+          count <- 0
+          reachedStart <- FALSE
+          reachedEnd <- FALSE
+          
+          for (m in 1:nrow(test)){
+            if (reachedStart == FALSE){
+              if (is.na(test[m,3])){
+                startN <- startN+1
+              }
+              else{
+                reachedStart <- TRUE
+              }
+            }
+            else if (reachedEnd == FALSE){
+              if (is.na(test[m,3])){
+                reachedEnd  <- TRUE
+                endN <- count
+              }
+            }
+            count <- count+1
+          }
+          startV <- append (startV, startN)
+          endV <- append (endV, endN)
+        }
+        startV
+        endV
         
+        realStart <- max(startV)
+        realEnd <- min(endV)
+        
+        if (selectedOutputValue() == "bias"){
+          selectedColumn <- 4    
+        }
+        else if (selectedOutputValue() == "payoff ratio") {
+          selectedColumn <- 3    
+        }
+        else if (selectedOutputValue() == "result") {
+          selectedColumn <- 9
+        }
+        else if (selectedOutputValue() == "distance") {
+          selectedColumn <- 10    
+        }
+        
+        displayMatrix <- matrix(resultMatrixes[[1]],nrow = length(newbr), ncol = 10)
+        
+        
+        data <- data.frame(displayMatrix[realStart:realEnd,2], displayMatrix[realStart:realEnd,selectedColumn])
+        ##colnames <- c("br", dPrimes()[1])
+        ##colnames(data) <- colnames
+        k <- 2
+        
+        while (k <= length(resultMatrixes)){
+          displayMatrix <- matrix(resultMatrixes[[k]],nrow = length(newbr), ncol = 10)
+          newdata <- data.frame(displayMatrix[realStart:realEnd,selectedColumn])
+          data <- cbind(data, newdata)
+          ##colnames <- c(colnames, dPrimes()[k+1])             
+          k <- k+1
+        }
+        
+        #colnames(data) <- colnames
+        
+        x <- list(title = "Base Rate",titlefont = font)
+        
+        y <- list(title = selectedOutputValue(),titlefont = font)
+        
+        theColors <- getColors(length(dPrimes()))
+        
+        fig <- plot_ly(x= data[,1],y= data[,2], type ='scatter', mode='lines', name=resultNamesList[[1]], line = list(color = theColors[1], dash = "lines")) %>% layout(xaxis = x, yaxis = y)
+        l <- 3 
+        dPrime <- 2
+        roundsofDprime <- 1
+        
+        while (l <= ncol(data)){
+          if (roundsofDprime == 1){
+            style <- "line"
+          } 
+          else if(roundsofDprime == 2){
+            style <- "dash"
+          }
+          else{
+            style <- "dot"
+          }
+          fig <- fig %>% add_trace(y= data[,l], mode='lines', name=resultNamesList[[l-1]], line = list(color= theColors[dPrime], dash = style))
+          l <- l+1
+          dPrime <- dPrime+1
+          if(length(dPrimes())<dPrime){
+            dPrime <- 1
+            roundsofDprime <- roundsofDprime + 1
+          }
+        }
+        fig
       }
-      
-      fig
     })
     
     output$chosenAnalysis <- renderText({
       def <- "No Chosen Analysis"
       ret <- ""
       vec <- vector()
-        if (TP() > 0)
-        {
+        if (TP() > 0){
             if (FP() > 0){
                 vec <- append(vec, 1)
-                ret <- paste(ret, "TP/FP", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "TP/FP", sep = " & ")  
+                }
+                else{
+                  ret <- "TP/FP"
+                }
+                
             }
             else if (FN()> 0){
               vec <- append(vec, 2)
-                ret <- "TP/FN"
-                ret <- paste(ret, "TP/FN", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "TP/FN", sep = " & ")  
+                }
+                else{
+                  ret <- "TP/FN"
+                }
             }
             else if (TN() > 0){
               vec <- append(vec, 3)
-                ret <- "TP/TN"
-                ret <- paste(ret, "TP/TN", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "TP/TN", sep = " & ")  
+                }
+                else{
+                  ret <- "TP/TN"
+                }
             }
         }
-        if (FP()> 0)
-        {
+        if (FP()> 0){
             if (FN() > 0){
               vec <- append(vec, 4)
-                ret <- "FP/FN"
-                ret <- paste(ret, "FP/FN", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "FP/FN", sep = " & ")
+                }
+                else{
+                  ret <- "FP/FN"
+                }
             }
             else if (TN() > 0){
               vec <- append(vec, 5)
-                ret <- "FP/TN"
-                ret <- paste(ret, "FP/TN", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "FP/TN", sep = " & ")
+                }
+                else{
+                  ret <- "FP/TN"
+                }
             }
         }
-        if (FN() > 0)
-        {
+        if (FN() > 0){
             if (TN() > 0){
               vec <- append(vec, 6)
-                ret <- "FN/TN"
-                ret <- paste(ret, "FN/TN", sep = " ")
+                if (nchar(ret) > 1){
+                  ret <- paste(ret, "FN/TN", sep = " & ") 
+                }
+                else{
+                  ret <- "FN/TN"
+                }
             }
         }
-      
-      
+        if (PRate() >0){
+          vec <- append(vec, 7)
+          if (nchar(ret) > 1){
+            ret <- paste(ret, "PositiveRate", sep = " & ") 
+          }
+          else{
+            ret <- "PositiveRate"
+          }
+        }
+
       ChosenAnalysis(vec)
-      if (length(ret) > 1){
+      if (nchar(ret) > 1){
         return(ret)
       }
       else {
         return(def)
       }
     })
+}
+
+getColors <- function(num){
+  theColors <- c("CC0000","00CC00","0000CC", "606060", "FFFF00", "00FFFF", "FF00FF", "994C00", "00994C", "4C0099", "99FF33", "3399FF", "FF3399", "C0C0C0", "000000")
+  if(num < 16){
+    return(theColors[1:num])
+  }
+  else{
+    return(c(theColors,theColors[1:num-15]))
+  }
 }
 
 # Run the application 
