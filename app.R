@@ -31,7 +31,7 @@ ui <- fluidPage(
             numericInput("dStepSize", "Define d' stepsize", 0.5, min = 0.001, max = 15, step = 0.001),
             numericInput("dNumber", "Define number of d' to chart", 3, min = 1, max = 14, step = 1),
             sliderInput("brRange", "Define br range:", c(0.2,0.8), min = 0.01, max = 0.999, step = 0.001),
-            selectInput("SelectedOutput", "Pick output:", c("payoff ratio","log 10 of payoff ratio", "bias", "result", "distance")),
+            selectInput("SelectedOutput", "Pick output:", c("payoff ratio","log 10 of payoff ratio", "bias", "result", "distance"), selected = "log 10 of payoff ratio"),
             textInput("graphTitle", "(optional) define graph title:", ""),
             textInput("yTitle", "(optional) define y-axis title:", ""),
             numericInput("yMin", "(optional) define minimum displayed y:", NA, min = 0, max = 1000000, step = 1),
@@ -103,337 +103,99 @@ server <- function(input, output) {
         realdPrimeVector <- append(realdPrimeVector, dPrimeErrors())  
       }
       
-        if(1%in%ChosenAnalysis()){
-            AnalysisName <- "FP/TP"
-            Goal <- FP()/TP()
-            for (i in realdPrimeVector){
-              imat <- matrix(nrow = 0, ncol = 10)
-                for (j in newbr){
-                    if((1-j)/j < Goal){
-                        SKIPPED <- TRUE
-                    }
-                  else{
-                    stepSize <- initialStepsize
-                    optimalBias <- 0
-                    nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                    nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                    FPdivTP <- nFalsePositives / nTruePositives
-                    
-                    distance <- Goal - FPdivTP
-                    
-                    if(distance > 0){
-                        MovingUp <- TRUE
-                    }
-                    else{
-                        MovingUp <- FALSE
-                    }
-                    Halved <- FALSE
-                    
-                    while (abs(distance) > desiredPrecision()){
-                        
-                        SKIPPED <- FALSE
-                        if(distance > 0){
-                            if (MovingUp == FALSE || Halved == TRUE){
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias - stepSize 
-                            MovingUp <- TRUE
-                        }
-                        else{
-                            if (MovingUp == TRUE || Halved == TRUE){
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias + stepSize  
-                            MovingUp <- FALSE
-                        }
-                        nFalsePositives <- (1-pnorm((optimalBias+i/2))) * ((1-j))
-                        nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                        FPdivTP <- nFalsePositives / nTruePositives
-                        
-                        distance <- Goal - FPdivTP
-                        
-                        if(nTruePositives == 0  || stepSize < 0.000000000001){
-                          SKIPPED <- TRUE
-                          break 
-                        }
-                      }  
-                    }
-                    if (SKIPPED == FALSE){
-                        FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                        nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                        nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                        
-                        imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivTP, distance))
-                    }
-                    else{
-                      
-                      imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA)) ##10 colums
-                    }
-                }
-                
-              resultMatrixes[[resultMatrixCount]] <- imat
-              
-              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
-              resultMatrixCount = resultMatrixCount + 1
-            }
-        }   
-        if(2%in%ChosenAnalysis()){
-            AnalysisName <- "TP/FN"
-            for (i in realdPrimeVector)
-            {
-                imat <- matrix(nrow = 0, ncol = 10)
-                Goal <- FN()/(TP()+FN())
-                optimalBias = qnorm(Goal) + i/2
-                
-                for (j in newbr){
-                    nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                    nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                    nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                    nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                    FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                    FNdivTP <- nFalseNegatives / nTruePositives
-                    distance <- FNdivTP - FP()/TN()
-                    imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FNdivTP, distance))
-                }
-                
-                resultMatrixes[[resultMatrixCount]] <- imat
-                
-                resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
-                
-                resultMatrixCount = resultMatrixCount + 1
-            }
-        }
-        if(3%in%ChosenAnalysis()){
-            AnalysisName <- "TN/TP"
-            Goal <- TN()/TP()
-            for (i in realdPrimeVector)
-            {
-              imat <- matrix(nrow = 0, ncol = 10)
-              for (j in baseRates()){
-                    stepSize <- initialStepsize
-                    optimalBias <- 0
-                    nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                    nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                    TNdivTP <- nTrueNegatives / nTruePositives
-                    distance <- Goal - TNdivTP
-                    
-                    if(distance < 0){
-                        MovingUp <- TRUE
-                    }
-                    else{
-                        MovingUp <- FALSE
-                    }
-                    
-                    Halved <- FALSE
-                    
-                    while (abs(distance) > desiredPrecision()){
-                        if(distance < 0)
-                        {
-                            if (MovingUp == FALSE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            
-                            optimalBias <- optimalBias - stepSize 
-                            MovingUp <- TRUE
-                        }
-                        else
-                        {
-                            if (MovingUp == TRUE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            
-                            optimalBias <- optimalBias + stepSize  
-                            MovingUp <- FALSE
-                        }
-                        
-                        nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                        nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                        TNdivTP <- nTrueNegatives / nTruePositives
-                        distance <- Goal - TNdivTP
-                        
-                    }
-                    
-                    nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                    nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                    FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                    
-                    imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, TNdivTP, distance))
-              }
-              resultMatrixes[[resultMatrixCount]] <- imat
-              
-              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
-              
-              resultMatrixCount = resultMatrixCount + 1
-            }
-            
-       }
-        if(4%in%ChosenAnalysis()){
-            AnalysisName <- "FP/FN"
-            Goal <- FP()/FN()
-            for (i in realdPrimeVector)
-            {
-              imat <- matrix(nrow = 0, ncol = 10)
-                for (j in baseRates()){
-                    stepSize <- initialStepsize
-                    optimalBias <- 0
-                    nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                    nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                    FPdivFN <- nFalsePositives / nFalseNegatives
-                    
-                    distance <- Goal - FPdivFN
-                    
-                    if(distance > 0){
-                        MovingUp <- TRUE
-                    }
-                    else{
-                        MovingUp <- FALSE
-                    }
-                    
-                    Halved <- FALSE
-                    
-                    while (abs(distance) > desiredPrecision()){
-                        if(distance > 0)
-                        {
-                            if (MovingUp == FALSE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias - stepSize 
-                            MovingUp <- TRUE
-                        }
-                        else
-                        {
-                            if (MovingUp == TRUE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias + stepSize  
-                            MovingUp <- FALSE
-                        }
-                        
-                        nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                        nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                        FPdivFN <- nFalsePositives / nFalseNegatives
-                        distance <- Goal - FPdivFN
-                    }
-                    
-                    nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                    nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                    FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                    
-                    imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivFN, distance))
-                }
-              resultMatrixes[[resultMatrixCount]] <- imat
-              
-              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
-              
-              resultMatrixCount = resultMatrixCount + 1
-            }
-        }
-        if(5%in%ChosenAnalysis()){
-          AnalysisName <- "TN/FP"
-          Goal <- FP()/(TN()+FP())
-            for (i in realdPrimeVector)
-            {
-                optimalBias = qnorm(Goal) - i/2
-                imat <- matrix(nrow = 0, ncol = 10)
-                
-                for (j in newbr){
-                    nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                    nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                    nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                    nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                    FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                    FPdivTN <- nFalsePositives / nTrueNegatives
-                    distance <- FPdivTN - FP()/TN()
-                    imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivTN, distance))
-                }
-                
-                resultMatrixes[[resultMatrixCount]] <- imat
-                
-                resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
-                
-                resultMatrixCount = resultMatrixCount + 1
-            }
-        }
-        if(6%in%ChosenAnalysis()){
-          AnalysisName <- "FN/TN"
-            Goal <- FN()/TN()
-            for (i in realdPrimeVector)
-            {
-              imat <- matrix(nrow = 0, ncol = 10)
+      if(1%in%ChosenAnalysis()){
+          AnalysisName <- "FP/TP"
+          Goal <- FP()/TP()
+          for (i in realdPrimeVector){
+            imat <- matrix(nrow = 0, ncol = 11)
               for (j in newbr){
-                  SKIPPED <- FALSE
-                  if((1-j)/j > Goal)
-                  {
-                    SKIPPED <- TRUE
-                  }else{
-                  
-                    stepSize <- initialStepsize
-                    optimalBias <- 0
-                    nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                    nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                    FNdivTN <- nFalseNegatives / nTrueNegatives
-                    distance <- Goal - FNdivTN
-                    if(distance < 0){
-                        MovingUp <- TRUE
-                    }
-                    else{
-                        MovingUp <- FALSE
-                    }
-                    Halved <- FALSE
-                    
-                    while (abs(distance) > desiredPrecision()){
-                        if(distance < 0)
-                        {
-                            if (MovingUp == FALSE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias - stepSize 
-                            MovingUp <- TRUE
-                        } 
-                        else
-                        {
-                            if (MovingUp == TRUE || Halved == TRUE)
-                            {
-                                stepSize <- stepSize/2
-                                Halved = TRUE
-                            }
-                            optimalBias <- optimalBias + stepSize  
-                            MovingUp <- FALSE
-                        }
-                        
-                        nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                        nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                        FNdivTN <- nFalseNegatives / nTrueNegatives
-                        distance <- Goal - FNdivTN
-                        if(nTruePositives == 0  || stepSize < 0.000000000001)
-                        {
-                            SKIPPED <- TRUE
-                            break 
-                        }
-                    }
-                    
+                  if((1-j)/j < Goal){
+                      SKIPPED <- TRUE
                   }
-                if (SKIPPED == FALSE){
+                else{
+                  stepSize <- initialStepsize
+                  optimalBias <- 0
                   nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
                   nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                  FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                  imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FNdivTN, distance))
-                }
-                else{
-                  imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA))
-                }
+                  FPdivTP <- nFalsePositives / nTruePositives
+                  
+                  distance <- Goal - FPdivTP
+                  
+                  if(distance > 0){
+                      MovingUp <- TRUE
+                  }
+                  else{
+                      MovingUp <- FALSE
+                  }
+                  Halved <- FALSE
+                  
+                  while (abs(distance) > desiredPrecision()){
+                      
+                      SKIPPED <- FALSE
+                      if(distance > 0){
+                          if (MovingUp == FALSE || Halved == TRUE){
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias - stepSize 
+                          MovingUp <- TRUE
+                      }
+                      else{
+                          if (MovingUp == TRUE || Halved == TRUE){
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias + stepSize  
+                          MovingUp <- FALSE
+                      }
+                      nFalsePositives <- (1-pnorm((optimalBias+i/2))) * ((1-j))
+                      nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                      FPdivTP <- nFalsePositives / nTruePositives
+                      
+                      distance <- Goal - FPdivTP
+                      
+                      if(nTruePositives == 0  || stepSize < 0.000000000001){
+                        SKIPPED <- TRUE
+                        break 
+                      }
+                    }  
+                  }
+                  if (SKIPPED == FALSE){
+                      FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                      nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                      nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                      
+                      imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivTP, distance))
+                  }
+                  else{
+                    
+                    imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA, NA)) ##11 colums
+                  }
+              }
+              
+            resultMatrixes[[resultMatrixCount]] <- imat
+            
+            resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+            resultMatrixCount = resultMatrixCount + 1
+          }
+      }   
+      if(2%in%ChosenAnalysis()){
+          AnalysisName <- "TP/FN"
+          for (i in realdPrimeVector)
+          {
+              imat <- matrix(nrow = 0, ncol = 11)
+              Goal <- FN()/(TP()+FN())
+              optimalBias = qnorm(Goal) + i/2
+              
+              for (j in newbr){
+                  nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                  nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                  nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                  nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                  FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                  FNdivTP <- nFalseNegatives / nTruePositives
+                  distance <- FNdivTP - FP()/TN()
+                  imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FNdivTP, distance))
               }
               
               resultMatrixes[[resultMatrixCount]] <- imat
@@ -442,76 +204,235 @@ server <- function(input, output) {
               
               resultMatrixCount = resultMatrixCount + 1
           }
-        }
-        if(7%in%ChosenAnalysis()){
-          AnalysisName <- "PositiveRate"
-          Goal <- PRate()
-          for (i in realdPrimeVector){
+      }
+      if(3%in%ChosenAnalysis()){
+          AnalysisName <- "TN/TP"
+          Goal <- TN()/TP()
+          for (i in realdPrimeVector)
+          {
             imat <- matrix(nrow = 0, ncol = 11)
-            for (j in newbr){
-              SKIPPED <- FALSE
-              if(0 >= Goal){
-                SKIPPED <- TRUE
-              }
-              else{
-                stepSize <- initialStepsize
-                optimalBias <- 0
-                nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
-                nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
-                nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
-                nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
-                distance <- Goal - PosRate
-                
-
-                
-                if(distance > 0){
-                  MovingUp <- TRUE
-                }
-                else{
-                  MovingUp <- FALSE
-                }
-                Halved <- FALSE
-                
-                while (abs(distance) > desiredPrecision()){
-                  if(distance > 0){
-                    if (MovingUp == FALSE || Halved == TRUE){
-                      stepSize <- stepSize/2
-                      Halved = TRUE
-                    }
-                    optimalBias <- optimalBias - stepSize 
-                    MovingUp <- TRUE
-                  } 
+            for (j in baseRates()){
+                  stepSize <- initialStepsize
+                  optimalBias <- 0
+                  nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                  nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                  TNdivTP <- nTrueNegatives / nTruePositives
+                  distance <- Goal - TNdivTP
+                  
+                  if(distance < 0){
+                      MovingUp <- TRUE
+                  }
                   else{
-                    if (MovingUp == TRUE || Halved == TRUE){
-                      stepSize <- stepSize/2
-                      Halved = TRUE
-                    }
-                    optimalBias <- optimalBias + stepSize  
-                    MovingUp <- FALSE
+                      MovingUp <- FALSE
                   }
                   
+                  Halved <- FALSE
+                  
+                  while (abs(distance) > desiredPrecision()){
+                      if(distance < 0)
+                      {
+                          if (MovingUp == FALSE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          
+                          optimalBias <- optimalBias - stepSize 
+                          MovingUp <- TRUE
+                      }
+                      else
+                      {
+                          if (MovingUp == TRUE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          
+                          optimalBias <- optimalBias + stepSize  
+                          MovingUp <- FALSE
+                      }
+                      
+                      nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                      nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                      TNdivTP <- nTrueNegatives / nTruePositives
+                      distance <- Goal - TNdivTP
+                      
+                  }
+                  
+                  nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                  nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                  FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                  
+                  imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, TNdivTP, distance))
+            }
+            resultMatrixes[[resultMatrixCount]] <- imat
+            
+            resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+            
+            resultMatrixCount = resultMatrixCount + 1
+          }
+          
+     }
+      if(4%in%ChosenAnalysis()){
+          AnalysisName <- "FP/FN"
+          Goal <- FP()/FN()
+          for (i in realdPrimeVector)
+          {
+            imat <- matrix(nrow = 0, ncol = 11)
+              for (j in baseRates()){
+                  stepSize <- initialStepsize
+                  optimalBias <- 0
+                  nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                  nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                  FPdivFN <- nFalsePositives / nFalseNegatives
+                  
+                  distance <- Goal - FPdivFN
+                  
+                  if(distance > 0){
+                      MovingUp <- TRUE
+                  }
+                  else{
+                      MovingUp <- FALSE
+                  }
+                  
+                  Halved <- FALSE
+                  
+                  while (abs(distance) > desiredPrecision()){
+                      if(distance > 0)
+                      {
+                          if (MovingUp == FALSE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias - stepSize 
+                          MovingUp <- TRUE
+                      }
+                      else
+                      {
+                          if (MovingUp == TRUE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias + stepSize  
+                          MovingUp <- FALSE
+                      }
+                      
+                      nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                      nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                      FPdivFN <- nFalsePositives / nFalseNegatives
+                      distance <- Goal - FPdivFN
+                  }
+                  
+                  nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                  nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                  FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                  
+                  imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivFN, distance))
+              }
+            resultMatrixes[[resultMatrixCount]] <- imat
+            
+            resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+            
+            resultMatrixCount = resultMatrixCount + 1
+          }
+      }
+      if(5%in%ChosenAnalysis()){
+        AnalysisName <- "TN/FP"
+        Goal <- FP()/(TN()+FP())
+          for (i in realdPrimeVector)
+          {
+              optimalBias = qnorm(Goal) - i/2
+              imat <- matrix(nrow = 0, ncol = 11)
+              
+              for (j in newbr){
                   nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
                   nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
                   nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
                   nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
-                  PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTrueNegatives)
-                  distance <- Goal - PosRate
-                  
-                  
-                  if(stepSize < 0.000000000001){
-                    SKIPPED <- TRUE
-                    break 
-                  }
-                }
-                
+                  FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                  FPdivTN <- nFalsePositives / nTrueNegatives
+                  distance <- FPdivTN - FP()/TN()
+                  imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FPdivTN, distance))
               }
+              
+              resultMatrixes[[resultMatrixCount]] <- imat
+              
+              resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+              
+              resultMatrixCount = resultMatrixCount + 1
+          }
+      }
+      if(6%in%ChosenAnalysis()){
+        AnalysisName <- "FN/TN"
+          Goal <- FN()/TN()
+          for (i in realdPrimeVector)
+          {
+            imat <- matrix(nrow = 0, ncol = 11)
+            for (j in newbr){
+                SKIPPED <- FALSE
+                if((1-j)/j > Goal)
+                {
+                  SKIPPED <- TRUE
+                }else{
+                
+                  stepSize <- initialStepsize
+                  optimalBias <- 0
+                  nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                  nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                  FNdivTN <- nFalseNegatives / nTrueNegatives
+                  distance <- Goal - FNdivTN
+                  if(distance < 0){
+                      MovingUp <- TRUE
+                  }
+                  else{
+                      MovingUp <- FALSE
+                  }
+                  Halved <- FALSE
+                  
+                  while (abs(distance) > desiredPrecision()){
+                      if(distance < 0)
+                      {
+                          if (MovingUp == FALSE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias - stepSize 
+                          MovingUp <- TRUE
+                      } 
+                      else
+                      {
+                          if (MovingUp == TRUE || Halved == TRUE)
+                          {
+                              stepSize <- stepSize/2
+                              Halved = TRUE
+                          }
+                          optimalBias <- optimalBias + stepSize  
+                          MovingUp <- FALSE
+                      }
+                      
+                      nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                      nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                      FNdivTN <- nFalseNegatives / nTrueNegatives
+                      distance <- Goal - FNdivTN
+                      if(nTruePositives == 0  || stepSize < 0.000000000001)
+                      {
+                          SKIPPED <- TRUE
+                          break 
+                      }
+                  }
+                  
+                }
               if (SKIPPED == FALSE){
-                FNPayOff <- log10(1/(exp(optimalBias*i)*j/(1-j)))
-                imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, PosRate, distance))
+                nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+                imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, FNdivTN, distance))
               }
               else{
-                imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA))
+                imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA, NA)) ##11 colums
               }
             }
             
@@ -520,14 +441,93 @@ server <- function(input, output) {
             resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
             
             resultMatrixCount = resultMatrixCount + 1
-          }
         }
+      }
+      if(7%in%ChosenAnalysis()){
+        AnalysisName <- "PositiveRate"
+        Goal <- PRate()
+        for (i in realdPrimeVector){
+          imat <- matrix(nrow = 0, ncol = 11)
+          for (j in newbr){
+            SKIPPED <- FALSE
+            if(0 >= Goal){
+              SKIPPED <- TRUE
+            }
+            else{
+              stepSize <- initialStepsize
+              optimalBias <- 0
+              nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+              nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+              nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+              nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+              PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTruePositives)
+              distance <- Goal - PosRate
+              
+
+              
+              if(distance > 0){
+                MovingUp <- TRUE
+              }
+              else{
+                MovingUp <- FALSE
+              }
+              Halved <- FALSE
+              
+              while (abs(distance) > desiredPrecision()){
+                if(distance > 0){
+                  if (MovingUp == FALSE || Halved == TRUE){
+                    stepSize <- stepSize/2
+                    Halved = TRUE
+                  }
+                  optimalBias <- optimalBias - stepSize 
+                  MovingUp <- TRUE
+                } 
+                else{
+                  if (MovingUp == TRUE || Halved == TRUE){
+                    stepSize <- stepSize/2
+                    Halved = TRUE
+                  }
+                  optimalBias <- optimalBias + stepSize  
+                  MovingUp <- FALSE
+                }
+                
+                nFalsePositives <- (1-pnorm((optimalBias+i/2))) * (1-j)
+                nTrueNegatives <- pnorm((optimalBias+i/2)) * (1-j)
+                nFalseNegatives <- pnorm((optimalBias-i/2)) * (j)
+                nTruePositives <- (1- pnorm((optimalBias-i/2))) * (j)
+                PosRate <- (nFalsePositives+nTruePositives) / (nFalsePositives+nTruePositives+nFalseNegatives+nTrueNegatives)
+                distance <- Goal - PosRate
+                
+                
+                if(stepSize < 0.000000000001){
+                  SKIPPED <- TRUE
+                  break 
+                }
+              }
+              
+            }
+            if (SKIPPED == FALSE){
+              FNPayOff <- (1/(exp(optimalBias*i)*j/(1-j)))
+              imat <- rbind(imat, c(i, j, FNPayOff, log10(FNPayOff), optimalBias, nFalsePositives, nFalseNegatives, nTruePositives, nTrueNegatives, PosRate, distance))
+            }
+            else{
+              imat <- rbind(imat, c(i, j, NA, NA, NA, NA, NA, NA, NA, NA, NA)) ##11 colums
+            }
+          }
+          
+          resultMatrixes[[resultMatrixCount]] <- imat
+          
+          resultNamesList <- append(resultNamesList, paste(AnalysisName, i, sep = " "))
+          
+          resultMatrixCount = resultMatrixCount + 1
+        }
+      }
       ## Restriction area 
       if (length(resultNamesList) > 0){
         endV <- vector()     
         startV <- vector()      
         for (n in 1:length(resultMatrixes)){
-          test = matrix(resultMatrixes[[n]],nrow = length(newbr), ncol = 10)
+          test = matrix(resultMatrixes[[n]],nrow = length(newbr), ncol = 11)
   
           startN <- 1
           endN <- length(newbr)
@@ -597,8 +597,6 @@ server <- function(input, output) {
         anchorColumns <- 0
         errorColumns <- 0
         
-        
-        
         if(!is.na(dPrimeReference()) && dPrimeReference() > 0){
           if(length(dPrimeErrors()) == 2&&!is.na(dPrimeErrors()[1]) && !is.na(dPrimeErrors()[2]) && dPrimeErrors()[1] > 0 && dPrimeErrors()[2] > 0){
             if(length(ChosenAnalysis()) > 1){
@@ -637,30 +635,34 @@ server <- function(input, output) {
           }
         }
         
-       
-        
         xTitle <- "Base Rate"
         yTitle <- selectedOutputValue()
         graphTitle <- "Base Rate"
         
-        analysisNames[c("TP/FP", "TP/FN", "TP/TN", "FP/TN", "FP/FN", "FN/TN", "Positive Rate")]
+        analysisNames <- c("TP/FP", "TP/FN", "TP/TN", "FP/TN", "FP/FN", "FN/TN", "Positive Rate")
         
-        if (nchar(xAxisTitle()) > 0)
-        {
+        if (nchar(xAxisTitle()) > 0){
           xTitle<- xAxisTitle()
         }
-        if (nchar(yAxisTitle()) > 0)
-        {
+        if (nchar(yAxisTitle()) > 0){
           yTitle<- yAxisTitle()
         }
-        if (nchar(customGraphTitle()) > 0)
-        {
+        if (nchar(customGraphTitle()) > 0){
           graphTitle<- customGraphTitle()
         }
         
-        x <- list(title = xTitle,titlefont = font)
+        if (!is.na(xAxisMin()) && !is.na(xAxisMax())){
+          
+          x <- list(title = xTitle,titlefont = font, range = c(xAxisMin(), xAxisMax()))
+        }else{
+          x <- list(title = xTitle,titlefont = font)  
+        }
         
-        y <- list(title = yTitle,titlefont = font)
+        if (!is.na(yAxisMin()) && !is.na(yAxisMax())){
+          y <- list(title = yTitle,titlefont = font, range = c(yAxisMin(), yAxisMax()))
+        }else{
+          y <- list(title = yTitle,titlefont = font)  
+        }
         
         theColors <- getColors(length(dPrimes()))
         
@@ -674,14 +676,12 @@ server <- function(input, output) {
           fig <- fig %>% add_lines(y = (c(max(data), min(data))), x = xAnchorVal(), name = xAnchorName(),  line = list(color = "grey")) 
         }
         
-        
         if(length(errorColumns) > 1){
-          fig <- fig %>% add_polygons(x=c(data[,1], rev(data[,1])), y= c(data[,(errorColumns[1])],rev(data[,errorColumns[2]])), mode='lines', name=paste(analysisNames(ChosenAnalysis()[1]),"Error"), color = I("dark grey"), opacity =0.8, line = list (width = 0))
+          fig <- fig %>% add_polygons(x=c(data[,1], rev(data[,1])), y= c(data[,(errorColumns[1])],rev(data[,errorColumns[2]])), mode='lines', name=paste(analysisNames[ChosenAnalysis()[1]],"Error"), color = I("dark grey"), opacity =0.8, line = list (width = 0))
           if(length(errorColumns)>2){
-            fig <- fig %>% add_polygons(x=c(data[,1], rev(data[,1])), y= c(data[,errorColumns[3]],rev(data[,errorColumns[4]])), mode='lines', name=paste(analysisNames(ChosenAnalysis()[2]),"Error"), color = I("dark grey"), opacity =0.8, line = list (width = 0))
+            fig <- fig %>% add_polygons(x=c(data[,1], rev(data[,1])), y= c(data[,errorColumns[3]],rev(data[,errorColumns[4]])), mode='lines', name=paste(analysisNames[ChosenAnalysis()[2]],"Error"), color = I("dark grey"), opacity =0.8, line = list (width = 0))
           }
         }
-        
         dPrime <- 1
         roundsofDprime <- 1
         
