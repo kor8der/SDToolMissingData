@@ -27,16 +27,31 @@ ui <- fluidPage(
             numericInput("TrueNegativesNum", "Define True Negative observations:", 0, min = 0, max = 1000000, step = 1),
             numericInput("PositiveRate", "Define positive percentage:", 0, min = 0, max = 100, step = 0.001),
             numericInput("DesiredPrecision", "Define Desired Precision (note that changing this may alter performance by orders of magnitude):", 0.001, min = 0.00000000001, max = 1, step = 0.00001),
-            sliderInput("dRange", "Define D' range:", c(0.5,1.0), min = 0.5, max = 8, step = 0.5),
-            sliderInput("brRange", "Define br range:", c(0.49,0.51), min = 0.01, max = 0.999, step = 0.001),
+            numericInput("dMinimum", "Define minimum d'", 0.5, min = 0.001, max = 15, step = 0.001),
+            numericInput("dStepSize", "Define d' stepsize", 0.5, min = 0.001, max = 15, step = 0.001),
+            numericInput("dNumber", "Define number of d'", 3, min = 1, max = 14, step = 1),
+            sliderInput("brRange", "Define br range:", c(0.2,0.8), min = 0.01, max = 0.999, step = 0.001),
             selectInput("SelectedOutput", "Pick output:", c("payoff ratio", "bias", "result", "distance")),
-            ##numericInput("TotalNegatives", "Define Total Negative rate:", 0, min = 0, max = 1000000, step = 1),
+            numericInput("yMin", "(optional) define minimum displayed y:", NA, min = 0, max = 1000000, step = 1),
+            numericInput("yMax", "(optional) define maximum displayed y:", NA, min = 0, max = 1000000, step = 1),
+            numericInput("yAnchor", "(optional) define y reference:", NA, min = 0, max = 1000000, step = 1),
+            textInput("yAnchorName", "(optional) define name for y reference:", ""),
+            textInput("yTitle", "(optional) define y-axis title:", ""),
+            numericInput("xMin", "(optional) define minimum displayed x:", NA, min = 0, max = 1000000, step = 1),
+            numericInput("xMax", "(optional) define maximum displayed x:", NA, min = 0, max = 1000000, step = 1),
+            numericInput("xAnchor", "(optional) define x reference:", NA, min = 0, max = 1000000, step = 1),
+            textInput("xAnchorName", "(optional) define name x reference:", ""),
+            textInput("xTitle", "(optional) define x-axis title:", ""),
+            numericInput("dAnchor", "(optional) define d' reference:", NA, min = 0, max = 1000000, step = 1),
+            numericInput("dMin", "(optional) define d' error margin minimum.", NA, min = 0, max = 1000000, step = 1),
+            numericInput("dMax", "(optional) define d' error margin maximum:", NA, min = 0, max = 1000000, step = 1),
+            textInput("graphTitle", "(optional) define graph title:", ""),
             width = 3
         ),
         
         # Show a plot of the generated distribution
         mainPanel(
-            h3(textOutput("chosenAnalysis")),
+          h3(textOutput("chosenAnalysis")),
             plotlyOutput("distPlot"),
             width = 9
         )
@@ -51,15 +66,25 @@ server <- function(input, output) {
     FN <- reactive({input$FalseNegativesNum})
     TN <- reactive({input$TrueNegativesNum})
     PRate <- reactive({input$PositiveRate})
-    dPrimes <- reactive({seq(input$dRange[1],input$dRange[2], 0.5)})
+    dPrimes <- reactive({seq(from = input$dMinimum, length.out = input$dNumber, by = input$dStepSize)})
+    dPrimeErrors <- reactive(c(input$dMin, input$dMax))
+    dPrimeReference <- reactive({input$dAnchor})
     baseRates <- reactive({seq(input$brRange[1],input$brRange[2], 0.001)})
     desiredPrecision <- reactive({input$DesiredPrecision})
     selectedOutputValue <-reactive({input$SelectedOutput})
-    font <- list(
-        family = "Courier New, monospace",
-        size = 24,
-        color = "#7f7f7f"
-    )
+    yAxisMin <- reactive({input$yMin})
+    yAxisMax <- reactive({input$yMax})
+    xAxisMin <- reactive({input$xMin})
+    xAxisMax <- reactive({input$xMax})
+    yAnchorVal <- reactive({input$yAnchor})
+    xAnchorVal <- reactive({input$xAnchor})
+    yAnchorName <- reactive({input$yAnchorName})
+    xAnchorName <- reactive({input$xAnchorName})
+    customGraphTitle <- reactive({input$graphTitle})
+    xAxisTitle <- reactive({input$xTitle})
+    yAxisTitle <- reactive({input$yTitle})
+    
+    font <- list(family = "Times New Roman",size = 24,color = "#7f7f7f")
     initialStepsize <- 0.1
     
     output$distPlot <- renderPlotly({
@@ -68,12 +93,20 @@ server <- function(input, output) {
       newbr = baseRates()
       realbrLength <- length(newbr)
       resultNamesList <- list()
+      realdPrimeVector <- dPrimes()
+      
+      if(!is.na(dPrimeReference()) && dPrimeReference() > 0){
+        realdPrimeVector <- append(realdPrimeVector, dPrimeReference())  
+      }
+      
+      if(length(dPrimeErrors()) == 2&&!is.na(dPrimeErrors()[1]) && !is.na(dPrimeErrors()[2]) && dPrimeErrors()[1] > 0 && dPrimeErrors()[2] > 0){
+        realdPrimeVector <- append(realdPrimeVector, dPrimeErrors())  
+      }
       
         if(1%in%ChosenAnalysis()){
             AnalysisName <- "FP/TP"
             Goal <- FP()/TP()
-            for (i in dPrimes())
-            {
+            for (i in realdPrimeVector){
               imat <- matrix(nrow = 0, ncol = 10)
                 for (j in newbr){
                     if((1-j)/j < Goal){
@@ -148,7 +181,7 @@ server <- function(input, output) {
         }   
         if(2%in%ChosenAnalysis()){
             AnalysisName <- "TP/FN"
-            for (i in dPrimes())
+            for (i in realdPrimeVector)
             {
                 imat <- matrix(nrow = 0, ncol = 10)
                 Goal <- FN()/(TP()+FN())
@@ -175,7 +208,7 @@ server <- function(input, output) {
         if(3%in%ChosenAnalysis()){
             AnalysisName <- "TN/TP"
             Goal <- TN()/TP()
-            for (i in dPrimes())
+            for (i in realdPrimeVector)
             {
               imat <- matrix(nrow = 0, ncol = 10)
               for (j in baseRates()){
@@ -243,7 +276,7 @@ server <- function(input, output) {
         if(4%in%ChosenAnalysis()){
             AnalysisName <- "FP/FN"
             Goal <- FP()/FN()
-            for (i in dPrimes())
+            for (i in realdPrimeVector)
             {
               imat <- matrix(nrow = 0, ncol = 10)
                 for (j in baseRates()){
@@ -308,7 +341,7 @@ server <- function(input, output) {
         if(5%in%ChosenAnalysis()){
           AnalysisName <- "TN/FP"
           Goal <- FP()/(TN()+FP())
-            for (i in dPrimes())
+            for (i in realdPrimeVector)
             {
                 optimalBias = qnorm(Goal) - i/2
                 imat <- matrix(nrow = 0, ncol = 10)
@@ -334,7 +367,7 @@ server <- function(input, output) {
         if(6%in%ChosenAnalysis()){
           AnalysisName <- "FN/TN"
             Goal <- FN()/TN()
-            for (i in dPrimes())
+            for (i in realdPrimeVector)
             {
               imat <- matrix(nrow = 0, ncol = 10)
               for (j in newbr){
@@ -413,7 +446,7 @@ server <- function(input, output) {
         if(7%in%ChosenAnalysis()){
           AnalysisName <- "PositiveRate"
           Goal <- PRate()
-          for (i in dPrimes()){
+          for (i in realdPrimeVector){
             imat <- matrix(nrow = 0, ncol = 10)
             for (j in newbr){
               print(i)
@@ -544,32 +577,59 @@ server <- function(input, output) {
         
         
         data <- data.frame(displayMatrix[realStart:realEnd,2], displayMatrix[realStart:realEnd,selectedColumn])
-        ##colnames <- c("br", dPrimes()[1])
-        ##colnames(data) <- colnames
         k <- 2
         
         while (k <= length(resultMatrixes)){
           displayMatrix <- matrix(resultMatrixes[[k]],nrow = length(newbr), ncol = 10)
           newdata <- data.frame(displayMatrix[realStart:realEnd,selectedColumn])
           data <- cbind(data, newdata)
-          ##colnames <- c(colnames, dPrimes()[k+1])             
           k <- k+1
         }
         
-        #colnames(data) <- colnames
+        xTitle <- "Base Rate"
+        yTitle <- selectedOutputValue()
+        graphTitle <- "Base Rate"
         
-        x <- list(title = "Base Rate",titlefont = font)
+        if (nchar(xAxisTitle()) > 0)
+        {
+          xTitle<- xAxisTitle()
+        }
+        if (nchar(yAxisTitle()) > 0)
+        {
+          yTitle<- yAxisTitle()
+        }
+        if (nchar(customGraphTitle()) > 0)
+        {
+          graphTitle<- customGraphTitle()
+        }
         
-        y <- list(title = selectedOutputValue(),titlefont = font)
+        x <- list(title = xTitle,titlefont = font)
+        
+        y <- list(title = yTitle,titlefont = font)
         
         theColors <- getColors(length(dPrimes()))
         
-        fig <- plot_ly(x= data[,1],y= data[,2], type ='scatter', mode='lines', name=resultNamesList[[1]], line = list(color = theColors[1], dash = "lines")) %>% layout(xaxis = x, yaxis = y)
-        l <- 3 
-        dPrime <- 2
+        fig <- plot_ly(data = data, type ='scatter', mode = 'lines') %>% layout(title = graphTitle, xaxis = x, yaxis = y)
+        
+        if(!is.na(yAnchorVal())){
+          fig <- fig %>% add_lines(y = yAnchorVal(), x = baseRates(), name = yAnchorName(),  line = list(color = "grey")) 
+        }
+        
+        if(!is.na(xAnchorVal())){
+          fig <- fig %>% add_lines(y = (c(max(data), min(data))), x = xAnchorVal(), name = xAnchorName(),  line = list(color = "grey")) 
+        }
+        
+        if(length(dPrimeErrors()) == 2&&!is.na(dPrimeErrors()[1]) && !is.na(dPrimeErrors()[2]) && dPrimeErrors()[1] > 0 && dPrimeErrors()[2] > 0){
+          lastNum <- length(realdPrimeVector)
+          fig <- fig %>% add_polygons(x=c(data[,1], rev(data[,1])), y= c(data[,(ncol(data)-1)],rev(data[,(ncol(data))])), mode='lines', name="Error", color = I("dark grey"), opacity =0.8, line = list (width = 0))
+        }
+        
+        
+        
+        dPrime <- 1
         roundsofDprime <- 1
         
-        while (l <= ncol(data)){
+        for (l in 2:length(dPrimes())){
           if (roundsofDprime == 1){
             style <- "line"
           } 
@@ -579,14 +639,20 @@ server <- function(input, output) {
           else{
             style <- "dot"
           }
-          fig <- fig %>% add_trace(y= data[,l], mode='lines', name=resultNamesList[[l-1]], line = list(color= theColors[dPrime], dash = style))
+          fig <- fig %>% add_trace(x=data[,1], y= data[,l], mode='lines', name=resultNamesList[[l-1]], line = list(color= theColors[dPrime], dash = style))
           l <- l+1
           dPrime <- dPrime+1
-          if(length(dPrimes())<dPrime){
+          if(length(realdPrimeVector)<dPrime){
             dPrime <- 1
             roundsofDprime <- roundsofDprime + 1
           }
         }
+        
+        if (!is.na(dPrimeReference()) && dPrimeReference() > 0){
+          fig <- fig %>% add_trace(x=data[,1], y= data[,(length(dPrimes())+2)], mode='lines', name=resultNamesList[[(length(dPrimes())+1)]], line = list(color= "000000", dash = "dot"))
+        }
+        
+        
         fig
       }
     })
