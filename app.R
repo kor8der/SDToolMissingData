@@ -1,15 +1,7 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library (ggplot2)
 library(plotly)
+library(rsconnect)
 
 
 # Define UI
@@ -516,7 +508,9 @@ server <- function(input, output) {
           
           resultMatrixCount = resultMatrixCount + 1
         }
-      }
+    }
+    
+    
     ## Restriction area 
     if (length(resultNamesList) > 0){
       endV <- vector()     
@@ -586,6 +580,7 @@ server <- function(input, output) {
         k <- k+1
       }
       
+      print(resultMatrixCount)
       
       ###location columns overview.
       mainColumns <- 0
