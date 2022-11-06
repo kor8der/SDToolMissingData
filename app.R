@@ -1,3 +1,6 @@
+##Before running this code for the first time, run the commented command below:
+#install.packages("shiny", "ggplot2", "plotly", "rsconnect")
+
 library(shiny)
 library (ggplot2)
 library(plotly)
